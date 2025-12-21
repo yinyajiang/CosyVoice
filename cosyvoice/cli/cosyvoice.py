@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import os
+import io
 import time
 from typing import Generator
 from tqdm import tqdm
@@ -94,6 +95,35 @@ class CosyVoice:
             if (not isinstance(i, Generator)) and len(i) < 0.5 * len(prompt_text):
                 logging.warning('synthesis text {} too short than prompt text {}, this may lead to bad performance'.format(i, prompt_text))
             model_input = self.frontend.frontend_zero_shot(i, prompt_text, prompt_wav, self.sample_rate, zero_shot_spk_id)
+            start_time = time.time()
+            logging.info('synthesis text {}'.format(i))
+            for model_output in self.model.tts(**model_input, stream=stream, speed=speed):
+                speech_len = model_output['tts_speech'].shape[1] / self.sample_rate
+                logging.info('yield speech len {}, rtf {}'.format(speech_len, (time.time() - start_time) / speech_len))
+                yield model_output
+                start_time = time.time()
+                
+    def get_promptmodel(self, prompt_text, prompt_wav, text_frontend=True):
+        prompt_text = self.frontend.text_normalize(prompt_text, split=False, text_frontend=text_frontend)
+        model_input = self.frontend.frontend_zero_shot('', prompt_text, prompt_wav, self.sample_rate, '')
+        b = io.BytesIO()
+        torch.save(model_input, b)
+        b.seek(0)
+        return b.getvalue()
+                
+    def inference_promptmodel(self, tts_text, promptmodel, stream=False, speed=1.0, text_frontend=True):
+        if isinstance(promptmodel, bytes):
+            model_input = torch.load(io.BytesIO(promptmodel))
+        elif isinstance(promptmodel, str) or isinstance(promptmodel, io.BytesIO):
+            model_input = torch.load(promptmodel)
+        else:
+            raise ValueError('model_input must be a bytes or path or io.BytesIO')
+        
+        for i in tqdm(self.frontend.text_normalize(tts_text, split=True, text_frontend=text_frontend)):
+            tts_text_token, tts_text_token_len = self.frontend._extract_text_token(i)
+            model_input['text'] = tts_text_token
+            model_input['text_len'] = tts_text_token_len
+
             start_time = time.time()
             logging.info('synthesis text {}'.format(i))
             for model_output in self.model.tts(**model_input, stream=stream, speed=speed):
