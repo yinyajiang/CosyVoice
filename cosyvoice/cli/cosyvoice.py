@@ -23,6 +23,7 @@ from cosyvoice.cli.frontend import CosyVoiceFrontEnd
 from cosyvoice.cli.model import CosyVoiceModel, CosyVoice2Model, CosyVoice3Model
 from cosyvoice.utils.file_utils import logging
 from cosyvoice.utils.class_utils import get_model_type
+from cosyvoice.utils.transcribe import Transcribe
 
 
 class CosyVoice:
@@ -61,6 +62,7 @@ class CosyVoice:
                                 '{}/flow.decoder.estimator.fp32.onnx'.format(model_dir),
                                 trt_concurrent,
                                 self.fp16)
+        self.transcribe = Transcribe()
         del configs
 
     def list_available_spks(self):
@@ -103,7 +105,11 @@ class CosyVoice:
                 yield model_output
                 start_time = time.time()
                 
-    def get_promptmodel(self, prompt_text, prompt_wav, text_frontend=True):
+    def get_promptmodel(self, prompt_wav, prompt_text = None,text_frontend=True):
+        if prompt_text is None:
+            prompt_wav, prompt_text = self.transcribe.transcribe(prompt_wav)
+            logging.info(f'transcribe prompt text: {prompt_text}')
+
         prompt_text = self.frontend.text_normalize(prompt_text, split=False, text_frontend=text_frontend)
         model_input = self.frontend.frontend_zero_shot('', prompt_text, prompt_wav, self.sample_rate, '')
         b = io.BytesIO()
