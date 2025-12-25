@@ -123,7 +123,8 @@ class CosyVoice:
         else:
             raise ValueError('model_input must be a bytes or path or io.BytesIO')
         
-        for i in tqdm(self.frontend.text_normalize(tts_text, split=True, text_frontend=text_frontend)):
+        tq = tqdm(self.frontend.text_normalize(tts_text, split=True, text_frontend=text_frontend))
+        for i in tq:
             tts_text_token, tts_text_token_len = self.frontend._extract_text_token(i)
             model_input['text'] = tts_text_token
             model_input['text_len'] = tts_text_token_len
@@ -133,42 +134,63 @@ class CosyVoice:
             for model_output in self.model.tts(**model_input, stream=stream, speed=speed):
                 speech_len = model_output['tts_speech'].shape[1] / self.sample_rate
                 logging.info('yield speech len {}, rtf {}'.format(speech_len, (time.time() - start_time) / speech_len))
-                yield model_output
+                yield (model_output, tq.total and tq.total == 1 and not stream)
                 start_time = time.time()
 
-    def save_tts_generator(self, tts_generator, target_path):
-        if isinstance(target_path, str):
-            file_path = target_path
-            dir_path = os.path.dirname(file_path)
-            if not dir_path:
-                dir_path = '.'
-            else:
-                os.makedirs(dir_path, exist_ok=True)
-            tmp_dir = tempfile.mkdtemp(prefix='cosyvoice_')
-        elif isinstance(target_path, io.BytesIO):
-            tmp_dir = tempfile.mkdtemp(prefix='cosyvoice_')
-            file_path = os.path.join(tmp_dir, 'result.wav')
-        else:
-            raise ValueError('target_path must be a string or io.BytesIO')
+    def save_tts_generator(self, tts_generator, target):
+        is_bytesio = False
+        if isinstance(target, io.BytesIO):
+            is_bytesio = True
+        elif not isinstance(target, str):
+            raise ValueError('target must be a string or io.BytesIO')
         
-        try:
-            files = []
-            for i, j in enumerate(tts_generator):
-                f = os.path.join(tmp_dir, f'{i}.wav')
-                files.append(f)
-                torchaudio.save(f, j['tts_speech'], self.sample_rate)
+        tmp_dir = None
 
-            if not files:
+        def _ensure_tmp_dir():
+            nonlocal tmp_dir
+            if tmp_dir is None:
+                tmp_dir = tempfile.mkdtemp(prefix='cosyvoice_')
+            return tmp_dir
+        
+        file_path = None
+
+        def _ensure_merged_file():
+            nonlocal file_path
+            if isinstance(target, str):
+                file_path = target
+            if file_path is None:
+                file_path = os.path.join(_ensure_tmp_dir(), 'result.wav')
+            return file_path
+
+        try:
+            segs_files = []
+            for i, j in enumerate(tts_generator):
+                only_one = False
+                if isinstance(j, tuple):
+                    model_output, only_one = j
+                else:
+                    model_output = j
+
+                if only_one and is_bytesio:
+                    torchaudio.save(target, model_output['tts_speech'], self.sample_rate, format='wav')
+                    target.seek(0)
+                    return
+                else:
+                    f = os.path.join(_ensure_tmp_dir(), f'{i}.wav')
+                    segs_files.append(f)
+                    torchaudio.save(f, model_output['tts_speech'], self.sample_rate)
+
+            if not segs_files:
                 raise ValueError('No audio generated from tts_generator')
 
-            merge_audio_files(file_path, files)
+            merge_audio_files(_ensure_merged_file(), segs_files)
 
-            if isinstance(target_path, io.BytesIO):
-                with open(file_path, 'rb') as f:
-                    target_path.write(f.read())
-                target_path.seek(0)
+            if is_bytesio:
+                with open(_ensure_merged_file(), 'rb') as f:
+                    target.write(f.read())
+                target.seek(0)
         finally:
-            if os.path.exists(tmp_dir):
+            if tmp_dir and os.path.exists(tmp_dir):
                 shutil.rmtree(tmp_dir, ignore_errors=True)
 
     def inference_cross_lingual(self, tts_text, prompt_wav, zero_shot_spk_id='', stream=False, speed=1.0, text_frontend=True):
@@ -285,7 +307,7 @@ class CosyVoice3(CosyVoice2):
         if torch.cuda.is_available() is False and (load_trt is True or fp16 is True):
             load_trt, fp16 = False, False
             logging.warning('no cuda device, set load_trt/fp16 to False')
-        logging.info(f'load_trt: {load_trt}, fp16: {fp16}, load_vllm: {load_vllm}')
+        logging.info(f'load_trt: {load_trt}, fp16: {fp16}, load_vllm: {load_vllm}, trt_concurrent: {trt_concurrent}')
         self.model = CosyVoice3Model(configs['llm'], configs['flow'], configs['hift'], fp16)
         self.model.load('{}/llm.pt'.format(model_dir),
                         '{}/flow.pt'.format(model_dir),
