@@ -14,6 +14,7 @@
 import os
 import io
 import time
+import tempfile
 from typing import Generator
 from tqdm import tqdm
 from hyperpyyaml import load_hyperpyyaml
@@ -23,7 +24,9 @@ from cosyvoice.cli.frontend import CosyVoiceFrontEnd
 from cosyvoice.cli.model import CosyVoiceModel, CosyVoice2Model, CosyVoice3Model
 from cosyvoice.utils.file_utils import logging
 from cosyvoice.utils.class_utils import get_model_type
-from cosyvoice.utils.transcribe import Transcribe
+from cosyvoice.utils.ffmpeg import merge_audio_files
+import torchaudio
+import shutil
 
 
 class CosyVoice:
@@ -62,7 +65,6 @@ class CosyVoice:
                                 '{}/flow.decoder.estimator.fp32.onnx'.format(model_dir),
                                 trt_concurrent,
                                 self.fp16)
-        self.transcribe = Transcribe()
         del configs
 
     def list_available_spks(self):
@@ -105,11 +107,7 @@ class CosyVoice:
                 yield model_output
                 start_time = time.time()
                 
-    def get_promptmodel(self, prompt_wav, prompt_text = None,text_frontend=True):
-        if prompt_text is None:
-            prompt_wav, prompt_text = self.transcribe.transcribe(prompt_wav)
-            logging.info(f'transcribe prompt text: {prompt_text}')
-
+    def get_promptmodel(self, prompt_text, prompt_wav, text_frontend=True):
         prompt_text = self.frontend.text_normalize(prompt_text, split=False, text_frontend=text_frontend)
         model_input = self.frontend.frontend_zero_shot('', prompt_text, prompt_wav, self.sample_rate, '')
         b = io.BytesIO()
@@ -137,6 +135,41 @@ class CosyVoice:
                 logging.info('yield speech len {}, rtf {}'.format(speech_len, (time.time() - start_time) / speech_len))
                 yield model_output
                 start_time = time.time()
+
+    def save_tts_generator(self, tts_generator, target_path):
+        if isinstance(target_path, str):
+            file_path = target_path
+            dir_path = os.path.dirname(file_path)
+            if not dir_path:
+                dir_path = '.'
+            else:
+                os.makedirs(dir_path, exist_ok=True)
+            tmp_dir = tempfile.mkdtemp(prefix='cosyvoice_')
+        elif isinstance(target_path, io.BytesIO):
+            tmp_dir = tempfile.mkdtemp(prefix='cosyvoice_')
+            file_path = os.path.join(tmp_dir, 'result.wav')
+        else:
+            raise ValueError('target_path must be a string or io.BytesIO')
+        
+        try:
+            files = []
+            for i, j in enumerate(tts_generator):
+                f = os.path.join(tmp_dir, f'{i}.wav')
+                files.append(f)
+                torchaudio.save(f, j['tts_speech'], self.sample_rate)
+
+            if not files:
+                raise ValueError('No audio generated from tts_generator')
+
+            merge_audio_files(file_path, files)
+
+            if isinstance(target_path, io.BytesIO):
+                with open(file_path, 'rb') as f:
+                    target_path.write(f.read())
+                target_path.seek(0)
+        finally:
+            if os.path.exists(tmp_dir):
+                shutil.rmtree(tmp_dir, ignore_errors=True)
 
     def inference_cross_lingual(self, tts_text, prompt_wav, zero_shot_spk_id='', stream=False, speed=1.0, text_frontend=True):
         for i in tqdm(self.frontend.text_normalize(tts_text, split=True, text_frontend=text_frontend)):
@@ -221,6 +254,13 @@ class CosyVoice2(CosyVoice):
                 yield model_output
                 start_time = time.time()
 
+    def get_promptmodel_instruct(self, instruct_text, prompt_wav):
+        model_input = self.frontend.frontend_instruct2('', instruct_text, prompt_wav, self.sample_rate, '')
+        b = io.BytesIO()
+        torch.save(model_input, b)
+        b.seek(0)
+        return b.getvalue()
+
 
 class CosyVoice3(CosyVoice2):
 
@@ -245,6 +285,7 @@ class CosyVoice3(CosyVoice2):
         if torch.cuda.is_available() is False and (load_trt is True or fp16 is True):
             load_trt, fp16 = False, False
             logging.warning('no cuda device, set load_trt/fp16 to False')
+        logging.info(f'load_trt: {load_trt}, fp16: {fp16}, load_vllm: {load_vllm}')
         self.model = CosyVoice3Model(configs['llm'], configs['flow'], configs['hift'], fp16)
         self.model.load('{}/llm.pt'.format(model_dir),
                         '{}/flow.pt'.format(model_dir),

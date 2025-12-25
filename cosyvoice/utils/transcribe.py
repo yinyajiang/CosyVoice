@@ -39,7 +39,7 @@ class Transcribe:
             text = seg.text.replace('...', '')
 
             # left 0.08s for each audios
-            audio_seg = audio[int( start_time * 1000) : min(max_len, int(end_time * 1000) + 80)]
+            audio_seg = audio[int(start_time * 1000): min(max_len, int(end_time * 1000) + 80)]
 
             # save = audio_seg.duration_seconds > 0.3 and \
             #         len(text) >= 1 and len(text) < 200 and \
