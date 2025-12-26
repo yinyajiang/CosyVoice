@@ -115,11 +115,15 @@ class CosyVoice:
         b.seek(0)
         return b.getvalue()
                 
-    def inference_promptmodel(self, tts_text, promptmodel, stream=False, speed=1.0, text_frontend=True):
+    def inference_promptmodel(self, tts_text, promptmodel=None, stream=False, speed=1.0, text_frontend=True):
         if isinstance(promptmodel, bytes):
             model_input = torch.load(io.BytesIO(promptmodel))
         elif isinstance(promptmodel, str) or isinstance(promptmodel, io.BytesIO):
             model_input = torch.load(promptmodel)
+        elif isinstance(promptmodel, None):
+            default_prompt_wav = os.path.abspath(os.path.join(self.model_dir, '../../asset/zero_shot_prompt.wav'))
+            default_instruct = 'You are a helpful assistant. Imitate the tone and speaking style.'
+            model_input = self.frontend.frontend_instruct2('', f'{default_instruct}<|endofprompt|>', default_prompt_wav, self.sample_rate, '')
         else:
             raise ValueError('model_input must be a bytes or path or io.BytesIO')
         
