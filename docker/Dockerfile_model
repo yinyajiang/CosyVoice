@@ -1,0 +1,21 @@
+FROM cosyvoice_env:latest
+
+WORKDIR /workspace/CosyVoice
+
+COPY modeldl.py modeldl.py
+
+RUN pip install huggingface-hub && \
+    pip cache purge
+
+RUN python modeldl.py
+
+RUN conda activate ${VENV} && cd pretrained_models/CosyVoice-ttsfrd/ && \
+    unzip resource.zip -d . && \
+    pip install ttsfrd_dependency-0.1-py3-none-any.whl --root-user-action=ignore && \
+    pip install ttsfrd-0.4.2-cp310-cp310-linux_x86_64.whl --root-user-action=ignore && \
+    pip cache purge && \
+    rm -f resource.zip resource.tar
+
+
+
+

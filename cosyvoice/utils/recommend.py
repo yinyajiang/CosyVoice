@@ -1,7 +1,7 @@
 import torch
 import subprocess
 import gc
-from cosyvoice.cli.vllm_cosvoice import AutoCosyVoice
+import time
 
 
 def get_gpu_memory_mb():
@@ -27,11 +27,17 @@ def get_gpu_total_memory_mb():
 
 
 def recommend_trt_concurrent(model):
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+    gc.collect()
+    time.sleep(1)
+
     if 'Fun-CosyVoice3-0.5B' in model:
         base = 8400
         increment = 2500
     else:
         raise ValueError(f'Unsupported model: {model}')
+    print(f"Model: {model}, base: {base}MB, increment: {increment}MB")
     total_memory = get_gpu_total_memory_mb()
     print(f"GPU total memory: {total_memory} MB")
     if total_memory is None:
@@ -47,3 +53,4 @@ def recommend_trt_concurrent(model):
     trt_concurrent = (free_memory - base) // increment + 1
     print(f"Recommended trt_concurrent: {trt_concurrent}")
     return trt_concurrent
+    

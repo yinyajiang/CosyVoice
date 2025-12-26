@@ -122,7 +122,7 @@ def test_trt_memory(trt_concurrent_values, model):
 
 if __name__ == '__main__':
     model = 'pretrained_models/Fun-CosyVoice3-0.5B'
-    # test_trt_memory([1, 2, 3], model)
+    test_trt_memory([1, 2, 3], model)
     trt_concurrent = recommend_trt_concurrent(model)
     print(f"推荐 trt_concurrent: {trt_concurrent}")
 
