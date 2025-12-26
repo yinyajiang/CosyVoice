@@ -19,3 +19,6 @@ RUN conda activate ${VENV} && cd pretrained_models/CosyVoice-ttsfrd/ && \
 
 
 
+
+
+

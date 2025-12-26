@@ -1,0 +1,7 @@
+FROM cosyvoice_model:latest
+
+WORKDIR /workspace/CosyVoice
+
+COPY ./cosyvoice/ ./cosyvoice/
+
+RUN echo "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > ./cosyvoice/_code_.txt
