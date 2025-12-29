@@ -4,10 +4,10 @@ WORKDIR /workspace/CosyVoice
 
 COPY modeldl.py modeldl.py
 
-RUN pip install huggingface-hub && \
+RUN conda activate ${VENV} && pip install huggingface-hub && \
     pip cache purge
 
-RUN python modeldl.py
+RUN conda activate ${VENV} && python modeldl.py
 
 RUN conda activate ${VENV} && cd pretrained_models/CosyVoice-ttsfrd/ && \
     unzip resource.zip -d . && \

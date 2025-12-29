@@ -4,4 +4,6 @@ WORKDIR /workspace/CosyVoice
 
 COPY ./cosyvoice/ ./cosyvoice/
 
+RUN find ./cosyvoice -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
+
 RUN echo "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > ./cosyvoice/_code_.txt
