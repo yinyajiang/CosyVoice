@@ -120,7 +120,7 @@ class CosyVoice:
             model_input = torch.load(io.BytesIO(promptmodel))
         elif isinstance(promptmodel, str) or isinstance(promptmodel, io.BytesIO):
             model_input = torch.load(promptmodel)
-        elif isinstance(promptmodel, None):
+        elif promptmodel is None:
             default_prompt_wav = os.path.abspath(os.path.join(self.model_dir, '../../asset/zero_shot_prompt.wav'))
             default_instruct = 'You are a helpful assistant. Imitate the tone and speaking style.'
             model_input = self.frontend.frontend_instruct2('', f'{default_instruct}<|endofprompt|>', default_prompt_wav, self.sample_rate, '')
