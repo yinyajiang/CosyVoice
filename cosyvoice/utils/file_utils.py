@@ -19,6 +19,7 @@ import json
 import torch
 import torchaudio
 import logging
+import io
 logging.getLogger('matplotlib').setLevel(logging.WARNING)
 logging.basicConfig(level=logging.DEBUG,
                     format='%(asctime)s %(levelname)s %(message)s')
@@ -42,6 +43,9 @@ def read_json_lists(list_file):
 
 
 def load_wav(wav, target_sr, min_sr=16000):
+    if isinstance(wav, bytes):
+        wav = io.BytesIO(wav)
+        wav.seek(0)
     speech, sample_rate = torchaudio.load(wav, backend='soundfile')
     speech = speech.mean(dim=0, keepdim=True)
     if sample_rate != target_sr:

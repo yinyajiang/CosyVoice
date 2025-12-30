@@ -10,10 +10,16 @@ def main():
     concurrent_num = recommend_trt_concurrent(model)
     cosyvoice = AutoCosyVoice(model_dir=model, fp16=False, load_vllm=False, load_trt=True, trt_concurrent=concurrent_num)
     
+    instruct = 'You are a helpful assistant.'
+    tts_text = '收到好友从远方寄来的生日礼物，那份意外的惊喜与深深的祝福让我心中充满了甜蜜的快乐，笑容如花儿般绽放。'
     prompt_text = '希望你以后能够做的比我还好呦。'
     prompt_wav = './asset/zero_shot_prompt.wav'
-    tts_text = '收到好友从远方寄来的生日礼物，那份意外的惊喜与深深的祝福让我心中充满了甜蜜的快乐，笑容如花儿般绽放。'
-    instruct = 'You are a helpful assistant. Imitate the tone and speaking style.'
+
+    tts_generator = cosyvoice.inference_instruct2(tts_text, f'{instruct}.模拟原始的音色和语调<|endofprompt|>', prompt_wav, stream=False)
+    cosyvoice.save_tts_generator(tts_generator, 'test1.wav')
+    return
+   
+    
     promptmodel = cosyvoice.get_promptmodel(f'{instruct}<|endofprompt|>{prompt_text}', prompt_wav)
     now = time.time()
     tts_generator = cosyvoice.inference_promptmodel(tts_text, promptmodel, stream=False)
@@ -21,7 +27,7 @@ def main():
     cosyvoice.save_tts_generator(tts_generator, b)
     with open('test1.wav', 'wb') as f:
         f.write(b.getvalue())
-    print(f'get_promptmodel elapsed time: {time.time() - now:.2f}秒')
+    print(f'elapsed time: {time.time() - now:.2f}秒')
     return
 
     with open('text.txt', 'r', encoding='utf-8') as f:

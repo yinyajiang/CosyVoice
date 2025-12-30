@@ -119,9 +119,14 @@ class CosyVoice:
         
         def _load_promptmodel():
             if isinstance(promptmodel, bytes):
-                model_input = torch.load(io.BytesIO(promptmodel))
-            elif isinstance(promptmodel, str) or isinstance(promptmodel, io.BytesIO):
-                model_input = torch.load(promptmodel)
+                b = io.BytesIO(promptmodel)
+                b.seek(0)
+                model_input = torch.load(b, map_location='cpu')
+            elif isinstance(promptmodel, str):
+                model_input = torch.load(promptmodel, map_location='cpu')
+            elif isinstance(promptmodel, io.BytesIO):
+                promptmodel.seek(0)
+                model_input = torch.load(promptmodel, map_location='cpu')
             elif promptmodel is None:
                 default_prompt_wav = os.path.abspath(os.path.join(self.model_dir, '../../asset/zero_shot_prompt.wav'))
                 default_instruct = 'You are a helpful assistant. Imitate the tone and speaking style.'
@@ -130,7 +135,11 @@ class CosyVoice:
                 raise ValueError('model_input must be a bytes or path or io.BytesIO')
             
             if not isinstance(model_input, dict):
-                raise TypeError(f'Expected model_input to be a dict, 'f'but got {type(model_input)}')
+                raise TypeError(
+                    f'Expected model_input to be a dict, '
+                    f'but got {type(model_input)}. '
+                    f'This may indicate torch.load() failed. '
+                    f'Check if the promptmodel data is valid.')
             return model_input
         
 
@@ -281,15 +290,19 @@ class CosyVoice2(CosyVoice):
                                 self.fp16)
         del configs
 
-    def inference_instruct2(self, tts_text, instruct_text, prompt_wav, zero_shot_spk_id='', stream=False, speed=1.0, text_frontend=True):
-        for i in tqdm(self.frontend.text_normalize(tts_text, split=True, text_frontend=text_frontend)):
+    def inference_instruct2(self, tts_text, instruct_text, prompt_wav, zero_shot_spk_id='', stream=False, speed=1.0, text_frontend=True, yield_one_flat=False):
+        tq = tqdm(self.frontend.text_normalize(tts_text, split=True, text_frontend=text_frontend))
+        for i in tq:
             model_input = self.frontend.frontend_instruct2(i, instruct_text, prompt_wav, self.sample_rate, zero_shot_spk_id)
             start_time = time.time()
             logging.info('synthesis text {}'.format(i))
             for model_output in self.model.tts(**model_input, stream=stream, speed=speed):
                 speech_len = model_output['tts_speech'].shape[1] / self.sample_rate
                 logging.info('yield speech len {}, rtf {}'.format(speech_len, (time.time() - start_time) / speech_len))
-                yield model_output
+                if yield_one_flat:
+                    yield (model_output, tq.total and tq.total == 1 and not stream)
+                else:
+                    yield model_output
                 start_time = time.time()
 
     def get_promptmodel_instruct(self, instruct_text, prompt_wav):
