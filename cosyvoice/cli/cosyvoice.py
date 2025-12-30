@@ -116,20 +116,29 @@ class CosyVoice:
         return b.getvalue()
                 
     def inference_promptmodel(self, tts_text, promptmodel=None, stream=False, speed=1.0, text_frontend=True):
-        if isinstance(promptmodel, bytes):
-            model_input = torch.load(io.BytesIO(promptmodel))
-        elif isinstance(promptmodel, str) or isinstance(promptmodel, io.BytesIO):
-            model_input = torch.load(promptmodel)
-        elif promptmodel is None:
-            default_prompt_wav = os.path.abspath(os.path.join(self.model_dir, '../../asset/zero_shot_prompt.wav'))
-            default_instruct = 'You are a helpful assistant. Imitate the tone and speaking style.'
-            model_input = self.frontend.frontend_instruct2('', f'{default_instruct}<|endofprompt|>', default_prompt_wav, self.sample_rate, '')
-        else:
-            raise ValueError('model_input must be a bytes or path or io.BytesIO')
         
+        def _load_promptmodel():
+            if isinstance(promptmodel, bytes):
+                model_input = torch.load(io.BytesIO(promptmodel))
+            elif isinstance(promptmodel, str) or isinstance(promptmodel, io.BytesIO):
+                model_input = torch.load(promptmodel)
+            elif promptmodel is None:
+                default_prompt_wav = os.path.abspath(os.path.join(self.model_dir, '../../asset/zero_shot_prompt.wav'))
+                default_instruct = 'You are a helpful assistant. Imitate the tone and speaking style.'
+                model_input = self.frontend.frontend_instruct2('', f'{default_instruct}<|endofprompt|>', default_prompt_wav, self.sample_rate, '')
+            else:
+                raise ValueError('model_input must be a bytes or path or io.BytesIO')
+            
+            if not isinstance(model_input, dict):
+                raise TypeError(f'Expected model_input to be a dict, 'f'but got {type(model_input)}')
+            return model_input
+        
+
         tq = tqdm(self.frontend.text_normalize(tts_text, split=True, text_frontend=text_frontend))
         for i in tq:
             tts_text_token, tts_text_token_len = self.frontend._extract_text_token(i)
+
+            model_input = _load_promptmodel()
             model_input['text'] = tts_text_token
             model_input['text_len'] = tts_text_token_len
 
@@ -147,6 +156,9 @@ class CosyVoice:
             is_bytesio = True
         elif not isinstance(target, str):
             raise ValueError('target must be a string or io.BytesIO')
+
+        if not isinstance(tts_generator, Generator):
+            raise ValueError('tts_generator must be a generator')
         
         tmp_dir = None
 
