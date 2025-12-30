@@ -25,6 +25,7 @@ from cosyvoice.cli.model import CosyVoiceModel, CosyVoice2Model, CosyVoice3Model
 from cosyvoice.utils.file_utils import logging
 from cosyvoice.utils.class_utils import get_model_type
 from cosyvoice.utils.ffmpeg import merge_audio_files
+from cosyvoice.utils.recommend import default_zero_shot_prompt_wav
 import torchaudio
 import shutil
 
@@ -128,9 +129,8 @@ class CosyVoice:
                 promptmodel.seek(0)
                 model_input = torch.load(promptmodel, map_location='cpu')
             elif promptmodel is None:
-                default_prompt_wav = os.path.abspath(os.path.join(self.model_dir, '../../asset/zero_shot_prompt.wav'))
                 default_instruct = 'You are a helpful assistant. Imitate the tone and speaking style.'
-                model_input = self.frontend.frontend_instruct2('', f'{default_instruct}<|endofprompt|>', default_prompt_wav, self.sample_rate, '')
+                model_input = self.frontend.frontend_instruct2('', f'{default_instruct}<|endofprompt|>', default_zero_shot_prompt_wav(self.model_dir), self.sample_rate, '')
             else:
                 raise ValueError('model_input must be a bytes or path or io.BytesIO')
             

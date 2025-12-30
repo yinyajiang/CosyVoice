@@ -2,6 +2,7 @@ import torch
 import subprocess
 import gc
 import time
+import os
 
 
 def get_gpu_memory_mb():
@@ -54,3 +55,6 @@ def recommend_trt_concurrent(model):
     print(f"Recommended trt_concurrent: {trt_concurrent}")
     return trt_concurrent
     
+
+def default_zero_shot_prompt_wav(model_dir):
+    return os.path.abspath(os.path.join(model_dir, '../../asset/zero_shot_prompt.wav'))
