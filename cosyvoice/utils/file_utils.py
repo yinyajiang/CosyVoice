@@ -46,6 +46,8 @@ def load_wav(wav, target_sr, min_sr=16000):
     if isinstance(wav, bytes):
         wav = io.BytesIO(wav)
         wav.seek(0)
+    elif isinstance(wav, io.BytesIO):
+        wav.seek(0)
     speech, sample_rate = torchaudio.load(wav, backend='soundfile')
     speech = speech.mean(dim=0, keepdim=True)
     if sample_rate != target_sr:
