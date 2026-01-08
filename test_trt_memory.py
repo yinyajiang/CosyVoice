@@ -7,14 +7,17 @@ import torch
 import gc
 from cosyvoice.cli.vllm_cosvoice import AutoCosyVoice
 from cosyvoice.utils.recommend import get_gpu_memory_mb, get_gpu_total_memory_mb, recommend_trt_concurrent
+import argparse
+import contextlib
+import os
 
 
-def test_trt_memory(trt_concurrent_values, model):
+def test_trt_memory(trt_concurrent_values, model, panic=False):
     # 清空显存
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
     gc.collect()
-    
+
     baseline_memory = get_gpu_memory_mb()
     total_memory = get_gpu_total_memory_mb()
     print(f"\n基线显存占用: {baseline_memory} MB")
@@ -74,6 +77,8 @@ def test_trt_memory(trt_concurrent_values, model):
             
         except Exception as e:
             print(f"错误: {e}")
+            if panic:
+                raise e
             results.append({
                 'trt_concurrent': trt_concurrent,
                 'error': str(e)
@@ -121,8 +126,32 @@ def test_trt_memory(trt_concurrent_values, model):
 
 
 if __name__ == '__main__':
-    model = 'pretrained_models/Fun-CosyVoice3-0.5B'
-    test_trt_memory([1, 2, 3], model)
-    trt_concurrent = recommend_trt_concurrent(model)
-    print(f"推荐 trt_concurrent: {trt_concurrent}")
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--model', type=str, default='pretrained_models/Fun-CosyVoice3-0.5B')
+    parser.add_argument('--find-base', type=int, default=0)
+    args = parser.parse_args()
+
+    if args.find_base:
+        print(f"find base for {args.model} ...")
+        test_trt_memory(range(1, args.find_base+1), args.model)
+        os.exit(0)
+
+    print(f"recommend trt concurrent for {args.model} ...")
+    r = recommend_trt_concurrent(args.model)
+    print(f"recommended trt concurrent: {r}")
+    print("\n\ntest trt concurrent ...")
+    concurrent = 0
+    with contextlib.suppress(Exception):
+        while True:
+            print(f"test concurrent: {concurrent+1} ...")
+            test_trt_memory(range(concurrent+1, concurrent+2), args.model, panic=True)
+            concurrent += 1
+    print(f"max concurrent: {concurrent}") 
+
+    print("\n\n#########\nresult:")
+    if concurrent == r:
+        print(f"   recommended trt concurrent: {r}")
+    else:
+        print(f"   max concurrent: {concurrent}, but recommended trt concurrent: {r}")
+    print("#########\n")
 
