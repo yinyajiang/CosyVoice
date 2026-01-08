@@ -25,7 +25,7 @@ from cosyvoice.cli.model import CosyVoiceModel, CosyVoice2Model, CosyVoice3Model
 from cosyvoice.utils.file_utils import logging
 from cosyvoice.utils.class_utils import get_model_type
 from cosyvoice.utils.ffmpeg import merge_audio_files
-from cosyvoice.utils.recommend import default_zero_shot_prompt_wav
+from cosyvoice.cli.dy import default_zero_shot_prompt_wav
 import torchaudio
 import shutil
 

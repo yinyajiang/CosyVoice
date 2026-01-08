@@ -1,13 +1,13 @@
 from cosyvoice.cli.vllm_cosvoice import AutoCosyVoice
 import time
 import threading
-from cosyvoice.utils.recommend import recommend_trt_concurrent
+from cosyvoice.utils.recommend import recommend_trt_concurrent_fast
 import io
 
 
 def main():
     model = 'pretrained_models/Fun-CosyVoice3-0.5B'
-    concurrent_num = recommend_trt_concurrent(model)
+    concurrent_num = recommend_trt_concurrent_fast(model)
     cosyvoice = AutoCosyVoice(model_dir=model, fp16=False, load_vllm=False, load_trt=True, trt_concurrent=concurrent_num)
     
     instruct = 'You are a helpful assistant.'

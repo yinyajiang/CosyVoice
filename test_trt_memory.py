@@ -6,13 +6,13 @@
 import torch
 import gc
 from cosyvoice.cli.vllm_cosvoice import AutoCosyVoice
-from cosyvoice.utils.recommend import get_gpu_memory_mb, get_gpu_total_memory_mb, recommend_trt_concurrent
+from cosyvoice.cli.dy import recommend_trt_concurrent
+from cosyvoice.utils.gpuutils import get_gpu_memory_mb, get_gpu_total_memory_mb
 import argparse
-import contextlib
 import os
 
 
-def test_trt_memory(trt_concurrent_values, model, panic=False):
+def find_trt_base(trt_concurrent_values, model):
     # 清空显存
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
@@ -77,8 +77,6 @@ def test_trt_memory(trt_concurrent_values, model, panic=False):
             
         except Exception as e:
             print(f"错误: {e}")
-            if panic:
-                raise e
             results.append({
                 'trt_concurrent': trt_concurrent,
                 'error': str(e)
@@ -133,20 +131,14 @@ if __name__ == '__main__':
 
     if args.find_base:
         print(f"find base for {args.model} ...")
-        test_trt_memory(range(1, args.find_base+1), args.model)
+        find_trt_base(range(1, args.find_base+1), args.model)
         os.exit(0)
 
-    print(f"recommend trt concurrent for {args.model} ...")
-    r = recommend_trt_concurrent(args.model)
-    print(f"recommended trt concurrent: {r}")
+    r = recommend_trt_concurrent(args.model, True)
+    print(f"fast recommended trt concurrent: {r}")
     print("\n\ntest trt concurrent ...")
-    concurrent = 0
-    with contextlib.suppress(Exception):
-        while True:
-            print(f"test concurrent: {concurrent+1} ...")
-            test_trt_memory(range(concurrent+1, concurrent+2), args.model, panic=True)
-            concurrent += 1
-    print(f"max concurrent: {concurrent}") 
+    
+    concurrent = recommend_trt_concurrent(args.model, False)
 
     print("\n\n#########\nresult:")
     if concurrent == r:
