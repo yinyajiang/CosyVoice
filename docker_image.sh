@@ -43,14 +43,17 @@ fi
 if [[ "$SCOPE" == *"env"* ]]; then
     echo "Building Dockerfile_env..."
     docker build -t cosyvoice_env:latest -f ./docker/Dockerfile_env .
+    echo "cosyvoice_env build completed."
 fi
 
 if [[ "$SCOPE" == *"model"* ]]; then
     echo "Building Dockerfile_model..."
     docker build -t cosyvoice_model:latest -f ./docker/Dockerfile_model .
+    echo "cosyvoice_model build completed."
 fi
 
 if [[ "$SCOPE" == *"code"* ]]; then
     echo "Building Dockerfile_code..."
     docker build -t cosyvoice_code:latest -f ./docker/Dockerfile_code .
+    echo "cosyvoice_code build completed."
 fi
