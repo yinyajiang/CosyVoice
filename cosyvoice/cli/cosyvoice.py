@@ -25,7 +25,6 @@ from cosyvoice.cli.model import CosyVoiceModel, CosyVoice2Model, CosyVoice3Model
 from cosyvoice.utils.file_utils import logging
 from cosyvoice.utils.class_utils import get_model_type
 from cosyvoice.utils.ffmpeg import merge_audio_files
-from cosyvoice.cli.dy import default_zero_shot_prompt_wav
 import torchaudio
 import shutil
 
@@ -108,57 +107,6 @@ class CosyVoice:
                 yield model_output
                 start_time = time.time()
                 
-    def get_promptmodel(self, prompt_text, prompt_wav, text_frontend=True):
-        prompt_text = self.frontend.text_normalize(prompt_text, split=False, text_frontend=text_frontend)
-        model_input = self.frontend.frontend_zero_shot('', prompt_text, prompt_wav, self.sample_rate, '')
-        b = io.BytesIO()
-        torch.save(model_input, b)
-        b.seek(0)
-        return b.getvalue()
-                
-    def inference_promptmodel(self, tts_text, promptmodel=None, stream=False, speed=1.0, text_frontend=True):
-        
-        def _load_promptmodel():
-            if isinstance(promptmodel, bytes):
-                b = io.BytesIO(promptmodel)
-                b.seek(0)
-                model_input = torch.load(b, map_location='cpu')
-            elif isinstance(promptmodel, str):
-                model_input = torch.load(promptmodel, map_location='cpu')
-            elif isinstance(promptmodel, io.BytesIO):
-                promptmodel.seek(0)
-                model_input = torch.load(promptmodel, map_location='cpu')
-            elif promptmodel is None:
-                default_instruct = 'You are a helpful assistant. Imitate the tone and speaking style.'
-                model_input = self.frontend.frontend_instruct2('', f'{default_instruct}<|endofprompt|>', default_zero_shot_prompt_wav(self.model_dir), self.sample_rate, '')
-            else:
-                raise ValueError('model_input must be a bytes or path or io.BytesIO')
-            
-            if not isinstance(model_input, dict):
-                raise TypeError(
-                    f'Expected model_input to be a dict, '
-                    f'but got {type(model_input)}. '
-                    f'This may indicate torch.load() failed. '
-                    f'Check if the promptmodel data is valid.')
-            return model_input
-        
-
-        tq = tqdm(self.frontend.text_normalize(tts_text, split=True, text_frontend=text_frontend))
-        for i in tq:
-            tts_text_token, tts_text_token_len = self.frontend._extract_text_token(i)
-
-            model_input = _load_promptmodel()
-            model_input['text'] = tts_text_token
-            model_input['text_len'] = tts_text_token_len
-
-            start_time = time.time()
-            logging.info('synthesis text {}'.format(i))
-            for model_output in self.model.tts(**model_input, stream=stream, speed=speed):
-                speech_len = model_output['tts_speech'].shape[1] / self.sample_rate
-                logging.info('yield speech len {}, rtf {}'.format(speech_len, (time.time() - start_time) / speech_len))
-                yield (model_output, tq.total and tq.total == 1 and not stream)
-                start_time = time.time()
-
     def save_tts_generator(self, tts_generator, target):
         is_bytesio = False
         if isinstance(target, io.BytesIO):
@@ -308,13 +256,6 @@ class CosyVoice2(CosyVoice):
                 current_duration_seconds += speech_len
                 if max_duration_seconds is not None and max_duration_seconds > 0 and current_duration_seconds > max_duration_seconds:
                     break
-
-    def get_promptmodel_instruct(self, instruct_text, prompt_wav):
-        model_input = self.frontend.frontend_instruct2('', instruct_text, prompt_wav, self.sample_rate, '')
-        b = io.BytesIO()
-        torch.save(model_input, b)
-        b.seek(0)
-        return b.getvalue()
 
 
 class CosyVoice3(CosyVoice2):
