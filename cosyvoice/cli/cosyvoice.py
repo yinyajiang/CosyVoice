@@ -290,7 +290,8 @@ class CosyVoice2(CosyVoice):
                                 self.fp16)
         del configs
 
-    def inference_instruct2(self, tts_text, instruct_text, prompt_wav, zero_shot_spk_id='', stream=False, speed=1.0, text_frontend=True, yield_one_flat=False):
+    def inference_instruct2(self, tts_text, instruct_text, prompt_wav, zero_shot_spk_id='', stream=False, speed=1.0, text_frontend=True, yield_one_flat=False, max_duration_seconds=None):
+        current_duration_seconds = 0
         tq = tqdm(self.frontend.text_normalize(tts_text, split=True, text_frontend=text_frontend))
         for i in tq:
             model_input = self.frontend.frontend_instruct2(i, instruct_text, prompt_wav, self.sample_rate, zero_shot_spk_id)
@@ -304,6 +305,9 @@ class CosyVoice2(CosyVoice):
                 else:
                     yield model_output
                 start_time = time.time()
+                current_duration_seconds += speech_len
+                if max_duration_seconds is not None and max_duration_seconds > 0 and current_duration_seconds > max_duration_seconds:
+                    break
 
     def get_promptmodel_instruct(self, instruct_text, prompt_wav):
         model_input = self.frontend.frontend_instruct2('', instruct_text, prompt_wav, self.sample_rate, '')
