@@ -255,7 +255,7 @@ class CosyVoice2(CosyVoice):
                 start_time = time.time()
                 current_duration_ms += speech_len*1000
                 if max_duration_ms is not None and max_duration_ms > 0 and current_duration_ms > max_duration_ms:
-                    break
+                    return
 
 
 class CosyVoice3(CosyVoice2):
