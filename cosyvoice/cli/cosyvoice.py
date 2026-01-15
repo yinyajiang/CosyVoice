@@ -238,14 +238,22 @@ class CosyVoice2(CosyVoice):
                                 self.fp16)
         del configs
 
-    def inference_instruct2(self, tts_text, instruct_text, prompt_wav, zero_shot_spk_id='', stream=False, speed=1.0, text_frontend=True, yield_one_flat=False, max_duration_ms=None):
+    def inference_instruct2(self, tts_text, instruct_text, prompt_wav, zero_shot_spk_id='', stream=False, speed=1.0, text_frontend=True, yield_one_flat=False, max_duration_ms=None, context=None):
         current_duration_ms = 0
+        
+        def _is_cancelled():
+            return context is not None and context.cancelled()
+
         tq = tqdm(self.frontend.text_normalize(tts_text, split=True, text_frontend=text_frontend))
         for i in tq:
+            if _is_cancelled():
+                raise Exception('Context cancelled')
             model_input = self.frontend.frontend_instruct2(i, instruct_text, prompt_wav, self.sample_rate, zero_shot_spk_id)
             start_time = time.time()
             logging.info('synthesis text {}'.format(i))
             for model_output in self.model.tts(**model_input, stream=stream, speed=speed):
+                if _is_cancelled():
+                    raise Exception('Context cancelled')
                 speech_len = model_output['tts_speech'].shape[1] / self.sample_rate
                 logging.info('yield speech len {}, rtf {}'.format(speech_len, (time.time() - start_time) / speech_len))
                 if yield_one_flat:
